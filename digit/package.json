@@ -13,7 +13,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.20.0",
     "bcrypt": "^6.0.0",
-    "cloudinary": "^2.10.0",
     "framer-motion": "^12.40.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.21.0",
