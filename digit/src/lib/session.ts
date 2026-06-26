@@ -30,7 +30,10 @@ export async function getSession() {
       },
       business,
     };
-  } catch (err) {
+  } catch (err: any) {
+    if (err && err.digest === 'DYNAMIC_SERVER_USAGE') {
+      throw err;
+    }
     console.error('Session helper error:', err);
     return null;
   }
