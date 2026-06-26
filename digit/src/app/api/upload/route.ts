@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { cookies } from 'next/headers';
 import { verifyJWT } from '@/lib/jwt';
+import cloudinary from '@/lib/cloudinary';
+import { UploadApiResponse } from 'cloudinary';
 
 async function getAuthUser() {
   const cookieStore = await cookies();
@@ -29,24 +29,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'ფაილი არ არის ატვირთული' }, { status: 400 });
     }
 
+    // 1. Accept only image files
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json({ success: false, error: 'დასაშვებია მხოლოდ სურათების ატვირთვა' }, { status: 400 });
+    }
+
+    // 2. Maximum size 5MB
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ success: false, error: 'ფაილის ზომა არ უნდა აღემატებოდეს 5MB-ს' }, { status: 400 });
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const originalName = file.name.replace(/\s+/g, '-');
-    const filename = `${uniqueSuffix}-${originalName}`;
-    
-    // Save directory inside public
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
-    
-    // Ensure dir exists
-    await mkdir(uploadDir, { recursive: true });
-    
-    const filePath = join(uploadDir, filename);
-    await writeFile(filePath, buffer);
+    // 3. Upload directly to Cloudinary using upload_stream
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          folder: 'digit_uploads',
+          resource_type: 'image',
+        },
+        (error, uploadResult) => {
+          if (error) {
+            reject(error);
+          } else if (!uploadResult) {
+            reject(new Error('Cloudinary upload returned no result'));
+          } else {
+            resolve(uploadResult);
+          }
+        }
+      ).end(buffer);
+    });
 
-    const fileUrl = `/uploads/${filename}`;
+    // 4. Return the Cloudinary secure URL in the API response
+    const fileUrl = result.secure_url;
 
     return NextResponse.json({ success: true, url: fileUrl });
   } catch (err: any) {
