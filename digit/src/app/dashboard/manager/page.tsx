@@ -749,9 +749,9 @@ export default function ManagerDashboard() {
                         filteredWorkers.map((w) => (
                           <div
                             key={w.id}
-                            onClick={() => setSelectedWorkerId(w.id)}
+                            onClick={() => setSelectedWorkerId(w.user_id)}
                             className={`p-3 rounded-xl border transition-all cursor-pointer flex justify-between items-center ${
-                              selectedWorkerId === w.id
+                              selectedWorkerId === w.user_id
                                 ? 'bg-indigo-650/10 border-indigo-500/35 text-indigo-400 shadow-sm'
                                 : 'bg-slate-900/50 border-slate-850 text-slate-350 hover:border-slate-800'
                             }`}
@@ -772,7 +772,7 @@ export default function ManagerDashboard() {
                               <span className="text-[10px] font-bold text-amber-450 flex items-center gap-0.5">
                                 ★ {w.rating ? parseFloat(w.rating.toString()).toFixed(1) : '0.0'}
                               </span>
-                              {selectedWorkerId === w.id && (
+                              {selectedWorkerId === w.user_id && (
                                 <Check className="h-4 w-4 text-indigo-400" />
                               )}
                             </div>
