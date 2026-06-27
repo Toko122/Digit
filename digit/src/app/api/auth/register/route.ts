@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { getUserByEmail, getUserByPhone, createUser, createBusiness } from '@/lib/queries/users';
+import { getUserByEmail, getUserByPhone, createUser, createBusiness, createWorkerProfile } from '@/lib/queries/users';
 import { signJWT } from '@/lib/jwt';
 
 const registerSchema = z.object({
@@ -58,6 +58,11 @@ export async function POST(request: Request) {
     // If role is business, create business record
     if (role === 'business' && businessName) {
       await createBusiness(user.id, businessName);
+    }
+
+    // If role is worker, create default worker profile record
+    if (role === 'worker') {
+      await createWorkerProfile(user.id);
     }
 
     // Sign JWT

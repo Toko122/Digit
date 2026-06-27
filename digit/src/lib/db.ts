@@ -157,6 +157,13 @@ async function ensureDatabaseSchema() {
       CREATE INDEX IF NOT EXISTS idx_worker_profiles_location ON worker_profiles(location);
       CREATE INDEX IF NOT EXISTS idx_worker_profiles_verification ON worker_profiles(verification_status);
 
+      -- Auto-create missing worker profiles for existing worker users
+      INSERT INTO worker_profiles (id, user_id, headline, hourly_rate, currency, experience_level, availability, visibility, verification_status)
+      SELECT gen_random_uuid(), id, '', 0.00, 'GEL', 'Intermediate', 'available', 'public', 'unverified'
+      FROM users
+      WHERE role = 'worker'
+      ON CONFLICT (user_id) DO NOTHING;
+
       -- WORK EXPERIENCE
       CREATE TABLE IF NOT EXISTS worker_experiences (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

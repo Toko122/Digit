@@ -86,6 +86,15 @@ export async function createBusiness(
   return rows[0];
 }
 
+export async function createWorkerProfile(userId: string): Promise<void> {
+  const sql = `
+    INSERT INTO worker_profiles (id, user_id, headline, hourly_rate, currency, experience_level, availability, visibility, verification_status)
+    VALUES (gen_random_uuid(), $1, '', 0.00, 'GEL', 'Intermediate', 'available', 'public', 'unverified')
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+  await query(sql, [userId]);
+}
+
 export async function getBusinessByUserId(userId: string): Promise<Business | null> {
   const sql = 'SELECT * FROM businesses WHERE user_id = $1 LIMIT 1';
   const rows = await query<Business>(sql, [userId]);
