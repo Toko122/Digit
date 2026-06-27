@@ -17,6 +17,20 @@ async function ensureDatabaseSchema() {
     await pool.query(`
       BEGIN;
 
+      -- Create custom types (enums) if they do not exist
+      DO $$
+      BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+              CREATE TYPE user_role AS ENUM ('worker', 'manager', 'business', 'admin');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'task_status') THEN
+              CREATE TYPE task_status AS ENUM ('pending', 'assigned', 'accepted', 'in_progress', 'completed', 'cancelled');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'assignment_status') THEN
+              CREATE TYPE assignment_status AS ENUM ('pending', 'accepted', 'rejected');
+          END IF;
+      END$$;
+
       -- Standard auto-update trigger function for updated_at column
       CREATE OR REPLACE FUNCTION update_updated_at_column()
       RETURNS TRIGGER AS $$
@@ -25,6 +39,79 @@ async function ensureDatabaseSchema() {
           RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
+
+      -- CORE TABLES
+      CREATE TABLE IF NOT EXISTS users (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          fullname VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          phone VARCHAR(55),
+          role user_role NOT NULL,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      DROP TRIGGER IF EXISTS trigger_update_users_updated_at ON users;
+      CREATE TRIGGER trigger_update_users_updated_at
+          BEFORE UPDATE ON users
+          FOR EACH ROW
+          EXECUTE FUNCTION update_updated_at_column();
+
+      CREATE TABLE IF NOT EXISTS businesses (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+          business_name VARCHAR(255) NOT NULL,
+          address TEXT,
+          description TEXT,
+          logo_url TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS tasks (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+          manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT NOT NULL,
+          status task_status DEFAULT 'pending'::task_status,
+          priority VARCHAR(50) DEFAULT 'normal',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      DROP TRIGGER IF EXISTS trigger_update_tasks_updated_at ON tasks;
+      CREATE TRIGGER trigger_update_tasks_updated_at
+          BEFORE UPDATE ON tasks
+          FOR EACH ROW
+          EXECUTE FUNCTION update_updated_at_column();
+
+      CREATE TABLE IF NOT EXISTS task_images (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          image_url TEXT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS task_assignments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          manager_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          worker_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status assignment_status DEFAULT 'pending'::assignment_status,
+          assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          responded_at TIMESTAMP WITH TIME ZONE
+      );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          body TEXT,
+          is_read BOOLEAN DEFAULT false,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
 
       -- CORE WORKER PROFILE
       CREATE TABLE IF NOT EXISTS worker_profiles (

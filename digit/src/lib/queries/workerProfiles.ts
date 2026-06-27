@@ -764,9 +764,9 @@ export async function searchAndFilterWorkers(params: {
       SELECT COUNT(DISTINCT s.name) 
       FROM worker_skills ws 
       JOIN skills s ON ws.skill_id = s.id 
-      WHERE ws.worker_profile_id = wp.id AND s.name = ANY($${paramIdx})
+      WHERE ws.worker_profile_id = wp.id AND LOWER(s.name) = ANY($${paramIdx})
     ) = $${paramIdx + 1}`);
-    values.push(params.skills);
+    values.push(params.skills.map(s => s.toLowerCase()));
     values.push(params.skills.length);
     paramIdx += 2;
   }
@@ -776,9 +776,9 @@ export async function searchAndFilterWorkers(params: {
     conditions.push(`(
       SELECT COUNT(DISTINCT wl.language_name) 
       FROM worker_languages wl 
-      WHERE wl.worker_profile_id = wp.id AND wl.language_name = ANY($${paramIdx})
+      WHERE wl.worker_profile_id = wp.id AND LOWER(wl.language_name) = ANY($${paramIdx})
     ) = $${paramIdx + 1}`);
-    values.push(params.languages);
+    values.push(params.languages.map(l => l.toLowerCase()));
     values.push(params.languages.length);
     paramIdx += 2;
   }
