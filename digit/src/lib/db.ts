@@ -11,9 +11,29 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
 });
 
+let isSchemaVerified = false;
+
 // Auto-ensure the complete database schema exists
 async function ensureDatabaseSchema() {
+  if (isSchemaVerified) return;
+
   try {
+    // Quick check: If the worker_reviews table already exists, the database is fully initialized
+    const checkTable = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'worker_reviews'
+      )
+    `);
+
+    if (checkTable.rows[0]?.exists) {
+      isSchemaVerified = true;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Database schema already exists, skipping initialization.');
+      }
+      return;
+    }
+
     await pool.query(`
       BEGIN;
 
@@ -381,6 +401,7 @@ async function ensureDatabaseSchema() {
 
       COMMIT;
     `);
+    isSchemaVerified = true;
     if (process.env.NODE_ENV !== 'production') {
       console.log('Successfully verified/created database schema.');
     }
