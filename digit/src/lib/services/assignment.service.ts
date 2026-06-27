@@ -2,29 +2,108 @@ import * as assignmentQueries from '../queries/assignments';
 import * as taskQueries from '../queries/tasks';
 import * as userQueries from '../queries/users';
 import * as notificationService from './notification.service';
+import pool from '../db';
 
 export async function assignWorker(taskId: string, managerId: string, workerId: string) {
-  // 1. Fetch task details
-  const task = await taskQueries.getTaskById(taskId);
-  if (!task) {
-    throw new Error('დავალება ვერ მოიძებნა');
-  }
-
-  // 2. Create the assignment
-  const assignment = await assignmentQueries.createAssignment(taskId, managerId, workerId);
-
-  // 3. Notify the worker
+  const client = await pool.connect();
   try {
-    await notificationService.createNotification(
-      workerId,
-      'ახალი შემოთავაზება',
-      `მენეჯერმა გამოგიგზავნათ ახალი დავალება: "${task.title}"`
-    );
-  } catch (err) {
-    console.error('Failed to notify worker on assignment:', err);
-  }
+    await client.query('BEGIN');
 
-  return assignment;
+    // 1. Fetch and Lock the task row to prevent concurrent assignment updates
+    const taskRes = await client.query(
+      'SELECT * FROM tasks WHERE id = $1 FOR UPDATE',
+      [taskId]
+    );
+    const task = taskRes.rows[0];
+    if (!task) {
+      throw new Error('დავალება ვერ მოიძებნა');
+    }
+
+    // Validate that the task belongs to the manager/business
+    if (task.manager_id !== managerId) {
+      throw new Error('წვდომა უარყოფილია - თქვენ არ ხართ ამ დავალების მენეჯერი');
+    }
+
+    // Verify task state is appropriate for assignments
+    if (task.status === 'completed' || task.status === 'cancelled') {
+      throw new Error('დასრულებულ ან გაუქმებულ დავალებაზე მუშის მიბმა შეუძლებელია');
+    }
+
+    // 2. Verify worker exists, has role 'worker' and is active
+    const workerRes = await client.query(
+      "SELECT * FROM users WHERE id = $1 AND role = 'worker' AND is_active = true",
+      [workerId]
+    );
+    const worker = workerRes.rows[0];
+    if (!worker) {
+      throw new Error('აქტიური მუშა ამ ID-ით ვერ მოიძებნა');
+    }
+
+    // 3. Check for existing active assignment
+    const activeAssignRes = await client.query(
+      "SELECT * FROM task_assignments WHERE task_id = $1 AND status IN ('pending', 'accepted')",
+      [taskId]
+    );
+    const activeAssignment = activeAssignRes.rows[0];
+
+    if (activeAssignment) {
+      // If the same worker is already assigned, reject
+      if (activeAssignment.worker_id === workerId) {
+        throw new Error('ეს მუშა უკვე მიბმულია ამ დავალებაზე');
+      }
+
+      // Deactivate the previous worker's assignment (mark as 'rejected' / cancelled)
+      await client.query(
+        "UPDATE task_assignments SET status = 'rejected', responded_at = NOW() WHERE id = $1",
+        [activeAssignment.id]
+      );
+
+      // Reset task status to 'assigned' because new assignment starts as pending
+      await client.query(
+        "UPDATE tasks SET status = 'assigned', updated_at = NOW() WHERE id = $1",
+        [taskId]
+      );
+
+      // Notify the old worker
+      try {
+        await notificationService.createNotification(
+          activeAssignment.worker_id,
+          'შემოთავაზება გაუქმდა',
+          `დავალებაზე "${task.title}" თქვენი შემოთავაზება გაუქმდა მენეჯერის მიერ.`
+        );
+      } catch (err) {
+        console.error('Failed to notify replaced worker:', err);
+      }
+    }
+
+    // 4. Create new pending assignment
+    const insertAssignRes = await client.query(
+      `INSERT INTO task_assignments (id, task_id, manager_id, worker_id, status, assigned_at, responded_at)
+       VALUES (gen_random_uuid(), $1, $2, $3, 'pending', NOW(), NULL)
+       RETURNING *`,
+      [taskId, managerId, workerId]
+    );
+    const assignment = insertAssignRes.rows[0];
+
+    // 5. Notify the new worker
+    try {
+      await notificationService.createNotification(
+        workerId,
+        'ახალი შემოთავაზება',
+        `მენეჯერმა გამოგიგზავნათ ახალი დავალება: "${task.title}"`
+      );
+    } catch (err) {
+      console.error('Failed to notify worker on assignment:', err);
+    }
+
+    await client.query('COMMIT');
+    return assignment;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function respondToAssignment(

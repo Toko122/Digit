@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Calendar, 
   Clock, 
   AlertCircle, 
@@ -15,10 +15,11 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   ChevronRight,
-  TrendingUp,
   Activity,
   Layers,
-  Sparkles
+  Sparkles,
+  Star,
+  Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -34,12 +35,18 @@ interface Task {
   updated_at: string;
   business_name: string;
   logo_url: string | null;
+  worker_id?: string | null;
+  worker_name?: string | null;
+  has_reviewed?: boolean;
+  my_rating?: number | null;
+  my_review_text?: string | null;
 }
 
 interface TaskDetail extends Task {
   images: string[];
   assignments: Array<{
     id: string;
+    worker_id: string;
     worker_name: string;
     manager_name: string;
     status: 'pending' | 'accepted' | 'rejected';
@@ -68,6 +75,70 @@ export default function BusinessDashboard() {
   const [formImages, setFormImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [postingTask, setPostingTask] = useState(false);
+
+  // Review Modal state
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewTaskId, setReviewTaskId] = useState<string | null>(null);
+  const [reviewWorkerId, setReviewWorkerId] = useState<string | null>(null);
+  const [reviewWorkerName, setReviewWorkerName] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState(false);
+
+  const handleOpenReviewModal = (
+    taskId: string, 
+    workerId: string, 
+    workerName: string, 
+    existingRating?: number | null, 
+    existingText?: string | null, 
+    e?: React.MouseEvent
+  ) => {
+    if (e) e.stopPropagation();
+    setReviewTaskId(taskId);
+    setReviewWorkerId(workerId);
+    setReviewWorkerName(workerName);
+    setReviewRating(existingRating || 5);
+    setReviewText(existingText || '');
+    setReviewSuccess(false);
+    setIsReviewModalOpen(true);
+  };
+
+  const handleConfirmReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewTaskId || !reviewWorkerId) return;
+    
+    setSubmittingReview(true);
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: reviewTaskId,
+          workerId: reviewWorkerId,
+          rating: reviewRating,
+          reviewText: reviewText.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReviewSuccess(true);
+        toast.success('შეფასება წარმატებით გაიგზავნა');
+        fetchTasks();
+        setTimeout(() => {
+          setIsReviewModalOpen(false);
+          setReviewSuccess(false);
+        }, 1500);
+      } else {
+        toast.error(data.error || 'შეფასების გაგზავნა ვერ მოხერხდა');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('კავშირის შეცდომა');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const fetchTasks = async () => {
     try {
@@ -404,15 +475,37 @@ export default function BusinessDashboard() {
                   </p>
                 </div>
 
-                <div className="flex justify-between items-center border-t border-slate-800/40 pt-4">
+                <div className="flex justify-between items-center border-t border-slate-800/40 pt-4" onClick={(e) => e.stopPropagation()}>
                   <span className={`text-[10px] font-bold border rounded px-2.5 py-1 ${statusInfo.class}`}>
                     {statusInfo.label}
                   </span>
                   
-                  <span className="text-[10px] text-indigo-400 hover:text-indigo-350 font-bold flex items-center gap-0.5 transition-colors">
-                    დეტალები
-                    <ChevronRight className="h-3 w-3" />
-                  </span>
+                  <div className="flex items-center gap-3">
+                    {task.status === 'completed' && task.worker_id && (
+                      task.has_reviewed ? (
+                        <button
+                          onClick={(e) => handleOpenReviewModal(task.id, task.worker_id!, task.worker_name!, task.my_rating, task.my_review_text, e)}
+                          className="text-[10px] text-amber-400 font-extrabold hover:text-amber-350 transition-colors cursor-pointer flex items-center gap-0.5"
+                        >
+                          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> შეფასების რედაქტირება
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => handleOpenReviewModal(task.id, task.worker_id!, task.worker_name!, null, null, e)}
+                          className="text-[10px] text-indigo-400 font-extrabold hover:text-indigo-350 transition-colors cursor-pointer flex items-center gap-0.5"
+                        >
+                          <Star className="h-3.5 w-3.5" /> შეფასება
+                        </button>
+                      )
+                    )}
+                    <span 
+                      onClick={() => handleOpenDrawer(task)}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-350 font-bold flex items-center gap-0.5 transition-colors cursor-pointer"
+                    >
+                      დეტალები
+                      <ChevronRight className="h-3 w-3" />
+                    </span>
+                  </div>
                 </div>
               </div>
             );
@@ -672,7 +765,15 @@ export default function BusinessDashboard() {
                             className="p-3 bg-slate-950/40 border border-slate-850/80 rounded-xl flex justify-between items-start gap-4"
                           >
                             <div>
-                              <p className="text-xs font-semibold text-slate-200">მუშა: {asg.worker_name}</p>
+                              <p className="text-xs font-semibold text-slate-200">
+                                მუშა:{' '}
+                                <Link 
+                                  href={`/profile/${asg.worker_id}`} 
+                                  className="text-indigo-400 hover:text-indigo-300 underline font-bold transition-colors cursor-pointer"
+                                >
+                                  {asg.worker_name}
+                                </Link>
+                              </p>
                               <p className="text-[10px] text-slate-500 mt-1">მენეჯერი: {asg.manager_name}</p>
                               <span className="text-[9px] text-slate-500 block mt-0.5">
                                 გამოგზავნილია: {new Date(asg.assigned_at).toLocaleString('ka-GE')}
@@ -700,6 +801,98 @@ export default function BusinessDashboard() {
                 </>
               ) : null}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {isReviewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent" />
+            
+            <div className="flex justify-between items-center p-5 border-b border-slate-800/40">
+              <h2 className="text-base font-bold text-white">მუშის შეფასება</h2>
+              <button
+                onClick={() => setIsReviewModalOpen(false)}
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
+                disabled={submittingReview}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {reviewSuccess ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4 min-h-[300px] animate-in fade-in zoom-in-95 duration-300">
+                <div className="h-16 w-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-emerald-400">
+                  <Check className="h-8 w-8 stroke-[3]" />
+                </div>
+                <div className="text-center">
+                  <h4 className="text-sm font-bold text-white">შეფასება გაიგზავნა!</h4>
+                  <p className="text-[10px] text-slate-500 mt-1">გმადლობთ გამოხმაურებისთვის</p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmReview} className="p-5 flex-1 flex flex-col overflow-hidden space-y-5">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">დავალებაზე დასაქმებული მუშა</p>
+                  <p className="text-sm font-bold text-white">{reviewWorkerName}</p>
+                </div>
+
+                {/* Star Selector */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">შეფასება (Stars)</label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setReviewRating(s)}
+                        className="text-slate-600 hover:text-amber-400 transition-colors duration-150 cursor-pointer"
+                      >
+                        <Star className={`h-8 w-8 ${s <= reviewRating ? 'text-amber-400 fill-amber-400' : 'text-slate-700'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Review Text */}
+                <div className="space-y-1.5 flex-1 flex flex-col min-h-[140px]">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-455 uppercase tracking-widest">
+                    <label>კომენტარი (არჩევითი)</label>
+                    <span className={reviewText.length > 1000 ? 'text-rose-400' : 'text-slate-500'}>
+                      {reviewText.length}/1000
+                    </span>
+                  </div>
+                  <textarea
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value.slice(0, 1000))}
+                    placeholder="დაწერეთ თქვენი შეფასება მუშის შესახებ..."
+                    className="w-full flex-1 p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-650 focus:border-indigo-500 focus:outline-none transition-all resize-none min-h-[100px]"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="flex justify-end gap-3 border-t border-slate-800/40 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsReviewModalOpen(false)}
+                    className="px-4 py-2 bg-slate-950 hover:bg-slate-850 text-slate-400 text-xs font-semibold rounded-xl border border-slate-800 transition-colors cursor-pointer"
+                    disabled={submittingReview}
+                  >
+                    გაუქმება
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingReview || reviewText.length > 1000}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-850/50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {submittingReview && <Loader2 className="h-3 w-3 animate-spin" />}
+                    გაგზავნა
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

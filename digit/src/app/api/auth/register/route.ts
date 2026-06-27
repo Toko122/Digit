@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { getUserByEmail, createUser, createBusiness } from '@/lib/queries/users';
+import { getUserByEmail, getUserByPhone, createUser, createBusiness } from '@/lib/queries/users';
 import { signJWT } from '@/lib/jwt';
 
 const registerSchema = z.object({
@@ -38,6 +38,14 @@ export async function POST(request: Request) {
     const existingUser = await getUserByEmail(email);
     if (existingUser) {
       return NextResponse.json({ success: false, error: "მომხმარებელი ამ ელ-ფოსტით უკვე არსებობს" }, { status: 400 });
+    }
+
+    // Check if phone number already exists
+    if (phone && phone.trim() !== '') {
+      const existingUserByPhone = await getUserByPhone(phone);
+      if (existingUserByPhone) {
+        return NextResponse.json({ success: false, error: "მომხმარებელი ამ ტელეფონის ნომრით უკვე არსებობს" }, { status: 400 });
+      }
     }
 
     // Hash password
@@ -81,7 +89,7 @@ export async function POST(request: Request) {
       }
     });
 
-  } catch (err: any) {
+  } catch (err) {
     console.error('Registration API Error:', err);
     return NextResponse.json({ success: false, error: "რეგისტრაციისას დაფიქსირდა შეცდომა" }, { status: 500 });
   }

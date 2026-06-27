@@ -29,9 +29,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'ფაილი არ არის ატვირთული' }, { status: 400 });
     }
 
-    // 1. Accept only image files
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ success: false, error: 'დასაშვებია მხოლოდ სურათების ატვირთვა' }, { status: 400 });
+    // 1. Accept only image files and PDF
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      return NextResponse.json({ success: false, error: 'დასაშვებია მხოლოდ სურათების და PDF ფაილების ატვირთვა' }, { status: 400 });
     }
 
     // 2. Maximum size 5MB
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       cloudinary.uploader.upload_stream(
         {
           folder: 'digit_uploads',
-          resource_type: 'image',
+          resource_type: 'auto',
         },
         (error, uploadResult) => {
           if (error) {

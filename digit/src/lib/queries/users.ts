@@ -30,6 +30,12 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   return rows.length > 0 ? rows[0] : null;
 }
 
+export async function getUserByPhone(phone: string): Promise<User | null> {
+  const sql = 'SELECT * FROM users WHERE phone = $1 LIMIT 1';
+  const rows = await query<User>(sql, [phone.trim()]);
+  return rows.length > 0 ? rows[0] : null;
+}
+
 export async function getUserById(id: string): Promise<User | null> {
   const sql = 'SELECT * FROM users WHERE id = $1 LIMIT 1';
   const rows = await query<User>(sql, [id]);

@@ -69,7 +69,7 @@ export async function acceptTask(taskId: string, managerId: string) {
   return updatedTask;
 }
 
-export async function rejectTask(_taskId: string, _managerId: string) {
+export async function rejectTask() {
   // If rejected: task remains visible to other managers.
   // We don't alter the task state in DB (it stays pending and unassigned).
   return { success: true, message: 'დავალება უარყოფილია' };

@@ -6,6 +6,9 @@ import * as taskQueries from '@/lib/queries/tasks';
 import { getBusinessByUserId } from '@/lib/queries/users';
 import { z } from 'zod';
 
+import { query } from '@/lib/db';
+import { DetailedTask } from '@/lib/queries/tasks';
+
 const createTaskSchema = z.object({
   title: z.string().min(3, "სათაური უნდა იყოს მინიმუმ 3 სიმბოლო"),
   description: z.string().min(10, "აღწერა უნდა იყოს მინიმუმ 10 სიმბოლო"),
@@ -64,36 +67,48 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get('scope') || 'all';
 
+    let tasks: DetailedTask[] = [];
+
     if (user.role === 'business') {
       const business = await getBusinessByUserId(user.id);
       if (!business) {
         return NextResponse.json({ success: false, error: 'ბიზნეს პროფილი ვერ მოიძებნა' }, { status: 404 });
       }
-      const tasks = await taskQueries.getTasksByBusiness(business.id);
-      return NextResponse.json({ success: true, tasks });
-    }
-
-    if (user.role === 'manager') {
+      tasks = await taskQueries.getTasksByBusiness(business.id);
+    } else if (user.role === 'manager') {
       if (scope === 'feed') {
         // Unassigned tasks
-        const tasks = await taskQueries.getPendingTasks();
-        return NextResponse.json({ success: true, tasks });
+        tasks = await taskQueries.getPendingTasks();
       } else if (scope === 'my') {
         // Tasks accepted by this manager
-        const tasks = await taskQueries.getTasksByManager(user.id);
-        return NextResponse.json({ success: true, tasks });
+        tasks = await taskQueries.getTasksByManager(user.id);
       } else {
-        const tasks = await taskQueries.getAllDetailedTasks();
-        return NextResponse.json({ success: true, tasks });
+        tasks = await taskQueries.getAllDetailedTasks();
       }
+    } else if (user.role === 'admin') {
+      tasks = await taskQueries.getAllDetailedTasks();
+    } else {
+      return NextResponse.json({ success: false, error: 'არასწორი როლი' }, { status: 403 });
     }
 
-    if (user.role === 'admin') {
-      const tasks = await taskQueries.getAllDetailedTasks();
-      return NextResponse.json({ success: true, tasks });
-    }
+    // Query reviewer's review states for these tasks to support Edit Review prefilling
+    const reviewedRows = await query<{ task_id: string; rating: number; review_text: string | null }>(
+      'SELECT task_id, rating, review_text FROM worker_reviews WHERE reviewer_id = $1',
+      [user.id]
+    );
+    const reviewedMap = new Map(reviewedRows.map(r => [r.task_id, { rating: r.rating, review_text: r.review_text }]));
 
-    return NextResponse.json({ success: false, error: 'არასწორი როლი' }, { status: 403 });
+    const tasksWithReview = tasks.map(task => {
+      const reviewInfo = reviewedMap.get(task.id);
+      return {
+        ...task,
+        has_reviewed: !!reviewInfo,
+        my_rating: reviewInfo ? reviewInfo.rating : null,
+        my_review_text: reviewInfo ? reviewInfo.review_text : null,
+      };
+    });
+
+    return NextResponse.json({ success: true, tasks: tasksWithReview });
   } catch (err: any) {
     console.error('Task GET API error:', err);
     return NextResponse.json({ success: false, error: 'დავალებების ჩატვირთვისას დაფიქსირდა შეცდომა' }, { status: 500 });

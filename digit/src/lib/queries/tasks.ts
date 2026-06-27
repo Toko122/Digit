@@ -53,7 +53,23 @@ export async function createTaskImage(taskId: string, imageUrl: string): Promise
 
 export async function getTaskById(id: string): Promise<DetailedTask | null> {
   const sql = `
-    SELECT t.*, b.business_name, b.logo_url
+    SELECT 
+      t.*, 
+      b.business_name, 
+      b.logo_url,
+      (
+        SELECT ta.worker_id 
+        FROM task_assignments ta 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_id,
+      (
+        SELECT u.fullname 
+        FROM task_assignments ta 
+        JOIN users u ON ta.worker_id = u.id 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_name
     FROM tasks t
     JOIN businesses b ON t.business_id = b.id
     WHERE t.id = $1
@@ -65,7 +81,23 @@ export async function getTaskById(id: string): Promise<DetailedTask | null> {
 
 export async function getPendingTasks(): Promise<DetailedTask[]> {
   const sql = `
-    SELECT t.*, b.business_name, b.logo_url
+    SELECT 
+      t.*, 
+      b.business_name, 
+      b.logo_url,
+      (
+        SELECT ta.worker_id 
+        FROM task_assignments ta 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_id,
+      (
+        SELECT u.fullname 
+        FROM task_assignments ta 
+        JOIN users u ON ta.worker_id = u.id 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_name
     FROM tasks t
     JOIN businesses b ON t.business_id = b.id
     WHERE t.status = 'pending'
@@ -76,7 +108,23 @@ export async function getPendingTasks(): Promise<DetailedTask[]> {
 
 export async function getTasksByBusiness(businessId: string): Promise<DetailedTask[]> {
   const sql = `
-    SELECT t.*, b.business_name, b.logo_url
+    SELECT 
+      t.*, 
+      b.business_name, 
+      b.logo_url,
+      (
+        SELECT ta.worker_id 
+        FROM task_assignments ta 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_id,
+      (
+        SELECT u.fullname 
+        FROM task_assignments ta 
+        JOIN users u ON ta.worker_id = u.id 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_name
     FROM tasks t
     JOIN businesses b ON t.business_id = b.id
     WHERE t.business_id = $1
@@ -87,7 +135,23 @@ export async function getTasksByBusiness(businessId: string): Promise<DetailedTa
 
 export async function getTasksByManager(managerId: string): Promise<DetailedTask[]> {
   const sql = `
-    SELECT t.*, b.business_name, b.logo_url
+    SELECT 
+      t.*, 
+      b.business_name, 
+      b.logo_url,
+      (
+        SELECT ta.worker_id 
+        FROM task_assignments ta 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_id,
+      (
+        SELECT u.fullname 
+        FROM task_assignments ta 
+        JOIN users u ON ta.worker_id = u.id 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_name
     FROM tasks t
     JOIN businesses b ON t.business_id = b.id
     WHERE t.manager_id = $1
@@ -98,7 +162,23 @@ export async function getTasksByManager(managerId: string): Promise<DetailedTask
 
 export async function getAllDetailedTasks(): Promise<DetailedTask[]> {
   const sql = `
-    SELECT t.*, b.business_name, b.logo_url
+    SELECT 
+      t.*, 
+      b.business_name, 
+      b.logo_url,
+      (
+        SELECT ta.worker_id 
+        FROM task_assignments ta 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_id,
+      (
+        SELECT u.fullname 
+        FROM task_assignments ta 
+        JOIN users u ON ta.worker_id = u.id 
+        WHERE ta.task_id = t.id AND ta.status = 'accepted'
+        LIMIT 1
+      ) as worker_name
     FROM tasks t
     JOIN businesses b ON t.business_id = b.id
     ORDER BY t.created_at DESC

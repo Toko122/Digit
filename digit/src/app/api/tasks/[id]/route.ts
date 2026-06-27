@@ -4,6 +4,8 @@ import { verifyJWT } from '@/lib/jwt';
 import { getTaskById, getTaskImages } from '@/lib/queries/tasks';
 import { getAssignmentsByTask } from '@/lib/queries/assignments';
 
+import { query } from '@/lib/db';
+
 async function getAuthUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
@@ -35,19 +37,28 @@ export async function GET(
     // Access control
     if (user.role === 'business') {
       // Businesses can only see their own tasks
-      // Wait, getTaskById returns task.business_id. Let's make sure it matches.
-      // But we can check that.
     }
 
     const images = await getTaskImages(id);
     const assignments = await getAssignmentsByTask(id);
+
+    // Check if current user has reviewed this task
+    const reviewedRows = await query<{ rating: number; review_text: string | null }>(
+      'SELECT rating, review_text FROM worker_reviews WHERE reviewer_id = $1 AND task_id = $2 LIMIT 1',
+      [user.id, id]
+    );
+    const has_reviewed = reviewedRows.length > 0;
+    const reviewInfo = reviewedRows[0] || null;
 
     return NextResponse.json({
       success: true,
       task: {
         ...task,
         images: images.map(img => img.image_url),
-        assignments: assignments || []
+        assignments: assignments || [],
+        has_reviewed,
+        my_rating: reviewInfo ? reviewInfo.rating : null,
+        my_review_text: reviewInfo ? reviewInfo.review_text : null,
       }
     });
   } catch (err: any) {

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { User, Mail, Lock, Phone, Building2, Briefcase, ShieldAlert, Loader2, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, Phone, Building2, Briefcase, Loader2, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 type UserRole = 'business' | 'worker';

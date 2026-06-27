@@ -9,7 +9,8 @@ import {
   LogOut, 
   ShieldCheck, 
   ClipboardList, 
-  MapPin
+  MapPin,
+  User
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -72,10 +73,12 @@ export default function Sidebar({ user, isOpen, setIsOpen }: SidebarProps) {
       case 'manager':
         return [
           { href: base, label: 'ახალი პროექტები', icon: ClipboardList },
+          { href: '/dashboard/manager/workers', label: 'მუშების ძიება', icon: User },
         ];
       case 'worker':
         return [
           { href: base, label: 'სამუშაო დაფა', icon: Briefcase },
+          { href: `/profile/${user.id}`, label: 'ჩემი პროფილი', icon: User },
         ];
       case 'admin':
         return [

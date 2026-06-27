@@ -14,8 +14,8 @@ async function getAuthUser() {
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  { params: _params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthUser();
